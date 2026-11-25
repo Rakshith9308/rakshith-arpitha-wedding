@@ -32,7 +32,7 @@ jobs:
       - name: Extract React project
         run: |
           mkdir -p app
-          unzip -q Rakshith_Arpitha_React_Invitation.zip -d app
+          unzip -q Rakshith_Arpitha_React_Invitation_Realistic.zip -d app
 
       - name: Install dependencies and build
         working-directory: app/rakshith-arpitha-react-invitation
