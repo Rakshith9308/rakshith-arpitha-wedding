@@ -1,9 +1,13 @@
+# Deploys the Vite + React invitation to GitHub Pages.
+# Replace the contents of your existing workflow file (.github/workflows/<name>.yml) with this.
+# Works in two ways:
+#   1. You upload the project ZIP to the repo root  -> it is extracted automatically.
+#   2. You upload the project files directly         -> they are used as they are.
 name: Deploy wedding invitation to GitHub Pages
 
 on:
   push:
-    branches:
-      - main
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -15,47 +19,68 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Extract project zip (if one is in the repo)
+        run: |
+          ZIP=$(ls -t *.zip 2>/dev/null | head -n 1 || true)
+          if [ -n "$ZIP" ]; then
+            echo "Extracting $ZIP"
+            rm -rf _project && mkdir _project
+            unzip -q -o "$ZIP" -d _project
+          else
+            echo "No zip in repo root; using repository files."
+          fi
+
+      - name: Locate project folder
+        run: |
+          FILE=$(find . -maxdepth 4 -name package.json -not -path '*/node_modules/*' -not -path './.git/*' | while read f; do d=$(dirname "$f"); ls "$d"/vite.config.* >/dev/null 2>&1 && echo "$f"; done | awk '{print length, $0}' | sort -n | head -n 1 | cut -d' ' -f2-)
+          # Prefer the freshly extracted zip if there is one
+          ZF=$(find _project -maxdepth 4 -name package.json -not -path '*/node_modules/*' 2>/dev/null | head -n 1 || true)
+          [ -n "$ZF" ] && FILE="$ZF"
+          if [ -z "$FILE" ]; then
+            echo "::error::No package.json with a vite.config found. Files in repo:"
+            find . -maxdepth 3 -not -path './.git/*' | head -60
+            exit 1
+          fi
+          DIR=$(dirname "$FILE")
+          echo "Project folder: $DIR"
+          echo "APP_DIR=$DIR" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Extract React project
+      - name: Install dependencies
+        working-directory: ${{ env.APP_DIR }}
         run: |
-          mkdir -p app
-          unzip -q Rakshith_Arpitha_React_Invitation_Realistic.zip -d app
-      - name: Install dependencies and build
-        working-directory: app/rakshith-arpitha-react-invitation
-        run: |
-          npm install
-          npm run build
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-      - name: Upload website artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Build
+        working-directory: ${{ env.APP_DIR }}
+        run: npm run build
+
+      - name: Check build output
+        working-directory: ${{ env.APP_DIR }}
+        run: test -f dist/index.html
+
+      - uses: actions/upload-pages-artifact@v3
         with:
-          path: app/rakshith-arpitha-react-invitation/dist
+          path: ${{ env.APP_DIR }}/dist
 
   deploy:
+    needs: build
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
-    runs-on: ubuntu-latest
-    needs: build
-
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
