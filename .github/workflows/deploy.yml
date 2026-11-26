@@ -1,11 +1,9 @@
-# Deploys the Vite + React invitation to GitHub Pages.
-# Save as: .github/workflows/deploy.yml  (always at the REPO ROOT)
-# One-time: repo Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
-name: Deploy to GitHub Pages
+name: Deploy wedding invitation to GitHub Pages
 
 on:
   push:
-    branches: [main, master]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -17,55 +15,47 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      # Finds the folder that holds package.json + vite.config (repo root or a subfolder like inv/).
-      - name: Locate project folder
-        run: |
-          FILE=$(find . -maxdepth 3 -name package.json -not -path '*/node_modules/*' | while read f; do d=$(dirname "$f"); ls "$d"/vite.config.* >/dev/null 2>&1 && echo "$f" && break; done)
-          if [ -z "$FILE" ]; then
-            echo "::error::No package.json with a vite.config found. Upload the project files (package.json, src/, public/, index.html, vite.config.js) to the repo."
-            echo "Repository files:"; find . -maxdepth 3 -not -path './.git/*' | head -50
-            exit 1
-          fi
-          DIR=$(dirname "$FILE")
-          echo "Project folder: $DIR"
-          echo "APP_DIR=$DIR" >> "$GITHUB_ENV"
-
-      - uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Install dependencies
-        working-directory: ${{ env.APP_DIR }}
+      - name: Extract React project
         run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
-      - name: Build
-        working-directory: ${{ env.APP_DIR }}
-        run: npm run build
-
-      - name: Check build output
-        working-directory: ${{ env.APP_DIR }}
-        run: test -f dist/index.html
-
-      - uses: actions/upload-pages-artifact@v3
+          mkdir -p app
+          unzip -q Rakshith_Arpitha_React_Invitation_Realistic.zip -d app
+      - name: Install dependencies and build
+        working-directory: app/rakshith-arpitha-react-invitation
+        run: |
+          npm install
+          npm run build
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
         with:
-          path: ${{ env.APP_DIR }}/dist
+          enablement: true
+
+      - name: Upload website artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/rakshith-arpitha-react-invitation/dist
 
   deploy:
-    needs: build
-    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+    needs: build
+
     steps:
-      - id: deployment
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
