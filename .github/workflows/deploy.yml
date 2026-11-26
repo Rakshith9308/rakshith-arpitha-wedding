@@ -1,9 +1,11 @@
-name: Deploy wedding invitation to GitHub Pages
+# Deploys the Vite + React invitation to GitHub Pages.
+# Put this file at: .github/workflows/deploy.yml  (repo root, next to package.json)
+# One-time setup: repo Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+name: Deploy to GitHub Pages
 
 on:
   push:
-    branches:
-      - main
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -18,64 +20,37 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: app/rakshith-arpitha-react-invitation/package-lock.json
 
-      - name: Verify ZIP file
-        run: |
-          echo "Checking ZIP file..."
-          ls -lah
-          test -f Rakshith_Arpitha_React_Invitation_Realistic.zip
-          unzip -t Rakshith_Arpitha_React_Invitation_Realistic.zip
-
-      - name: Extract React project
-        run: |
-          mkdir -p app
-          unzip -q Rakshith_Arpitha_React_Invitation_Realistic.zip -d app
-
-          echo "Extracted project files:"
-          ls -lah app
-
-          test -f app/rakshith-arpitha-react-invitation/package.json
-
+      # Uses the lockfile when present, otherwise a normal install.
       - name: Install dependencies
-        working-directory: app/rakshith-arpitha-react-invitation
-        run: npm install
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-      - name: Build React application
-        working-directory: app/rakshith-arpitha-react-invitation
+      - name: Build
         run: npm run build
 
-      - name: Verify build output
-        run: |
-          test -f app/rakshith-arpitha-react-invitation/dist/index.html
-          echo "Build completed successfully!"
+      - name: Check build output
+        run: test -f dist/index.html
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload website artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: app/rakshith-arpitha-react-invitation/dist
+          path: dist
 
   deploy:
+    needs: build
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
-    runs-on: ubuntu-latest
-    needs: build
-
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
